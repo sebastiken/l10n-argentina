@@ -536,7 +536,7 @@ class account_invoice_tax(osv.osv):
                 val['manual'] = False
                 val['sequence'] = tax['sequence']
                 val['is_exempt'] = is_exempt
-                val['base'] = tax['price_unit'] * line['quantity']
+                val['base'] = cur_obj.round(tax['price_unit'] * line['quantity'])
                 val['tax_id'] = tax['id']
 
                 if inv.type in ('out_invoice','in_invoice'):
