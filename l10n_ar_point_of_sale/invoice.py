@@ -46,7 +46,7 @@ class invoice(models.Model):
         result = []
 
         if not self._context.get('use_internal_number', True):
-            result = super(invoice, self).name_get()
+        result = super(invoice, self).name_get()
         else:
 
             #reads = self.read(cr, uid, ids, ['pos_ar_id', 'type', 'is_debit_note', 'internal_number', 'denomination_id'], context=context)
