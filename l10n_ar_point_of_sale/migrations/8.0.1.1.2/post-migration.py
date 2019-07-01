@@ -87,7 +87,6 @@ def _do_update(cr):
         for tup in res:
             old_fiscal_id = tup
 
-        __import__("ipdb").set_trace()
 
         partners = env['res.partner'].search([('property_account_position', '=', old_fiscal_id[0])])
 
