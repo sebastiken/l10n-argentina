@@ -48,6 +48,55 @@ class account_invoice(models.Model):
     wsfe_request_ids = fields.One2many('wsfe.request.detail', 'name')
     wsfex_request_ids = fields.One2many('wsfex.request.detail', 'invoice_id')
 
+    fiscal_type_id = fields.Many2one('account.invoice.fiscal.type', 'Fiscal type', default=lambda self: self.env.ref('l10n_ar_wsfe.fiscal_type_normal'))
+    voucher_type_id = fields.Many2one('wsfe.voucher_type', 'Voucher type', compute='_compute_voucher_type_id', store=True)
+
+    @api.multi
+    def set_fiscal_type_id(self):
+        for invoice in self:
+            partner_id = invoice.partner_id
+            if partner_id:
+                receipt_wsfe = partner_id.receipt_wsfe
+                if receipt_wsfe:
+                    invoice.fiscal_type_id = self.env.ref('l10n_ar_wsfe.fiscal_type_fcred')
+                else:
+                    invoice.fiscal_type_id = self.env.ref('l10n_ar_wsfe.fiscal_type_normal')
+
+    @api.depends("denomination_id","fiscal_type_id","type")
+    def _compute_voucher_type_id(self):
+        for invoice in self:
+            voucher_model = None
+            model = invoice._name
+
+            if invoice.type in ('out_invoice', 'in_invoice'):
+                invoice_type = 'invoice'
+                if invoice.is_debit_note:
+                    invoice_type = 'debit'
+            else:
+                invoice_type = 'credit'
+
+            res = invoice.env['wsfe.voucher_type'].search([('voucher_model', '=', model), ('document_type', '=', invoice_type), ('denomination_id', '=', invoice.denomination_id.id), ('fiscal_type_id', '=', invoice.fiscal_type_id.id)])
+
+            if not len(res):
+                return
+
+            if len(res) > 1:
+                raise osv.except_osv(_("Voucher type error!"), _("There is more than one voucher type that corresponds to this object"))
+
+            invoice.voucher_type_id = res
+
+    @api.multi
+    def invoice_validate(self):
+        for inv in self:
+            message = ""
+            if not inv.fiscal_type_id:
+                message += _("\nThe invoice must have a fiscal type")
+            if not inv.voucher_type_id:
+                message += _("\nThe invoice must have a voucher type")
+            if len(message):
+                raise osv.except_osv(_("Invoice validation error!"), message)
+        return super(account_invoice, self).invoice_validate()
+
     @api.multi
     def onchange_partner_id(self, type, partner_id, date_invoice=False,
             payment_term=False, partner_bank_id=False, company_id=False):
@@ -60,9 +109,9 @@ class account_invoice(models.Model):
             country_id = partner.country_id.id or False
             if country_id:
                 dst_country = self.env['wsfex.dst_country.codes'].search([('country_id','=',country_id)])
-
                 if dst_country:
                     res['value'].update({'dst_country_id': dst_country[0].id})
+            self.set_fiscal_type_id()
         return res
 
     # Esto lo hacemos porque al hacer una nota de credito, no le setea la fiscal_position

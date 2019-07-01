@@ -560,14 +560,15 @@ It is a proof that a company sends to your client, which is notified to be charg
     name = fields.Char('Name', size=64, required=True, readonly=False, help='Voucher Type, eg.: Factura A, Nota de Credito B, etc.')
     code = fields.Char('Code', size=4, required=True, help='Internal Code assigned by AFIP for voucher type')
     voucher_model = fields.Selection([
-        ('invoice', 'Factura/NC/ND'),
-        ('voucher', 'Recibo'), ], 'Voucher Model', select=True, required=True)
+        ('account.invoice', 'Factura/NC/ND'),
+        ('account.voucher', 'Recibo'), ], 'Voucher Model', select=True, required=True)
     document_type = fields.Selection([
-        ('out_invoice', 'Factura'),
-        ('out_refund', 'Nota de Credito'),
-        ('out_debit', 'Nota de Debito'),
+        ('invoice', 'Factura'),
+        ('refund', 'Nota de Credito'),
+        ('debit', 'Nota de Debito'),
     ], 'Document Type', select=True, required=True, readonly=False)
     denomination_id = fields.Many2one('invoice.denomination', 'Denomination', required=False)
+    fiscal_type_id = fields.Many2one('account.invoice.fiscal.type', 'Fiscal type')
 
     @api.model
     def get_voucher_type(self, voucher):
