@@ -122,8 +122,8 @@
                     <field name="local" invisible="1"/>
                 </field>
                 <field name="fiscal_position" position="after">
-                    <field name="voucher_type_id"/>
-                    <field name="fiscal_type_id"/>
+                    <field name="voucher_type_id" invisible="1"/>
+                    <field name="fiscal_type_id" invisible="1"/>
                     <field name="dst_cuit_id" widget="selection"
                         attrs="{'invisible': [('local','=', True)]}"/>
                 </field>
