@@ -27,6 +27,14 @@ from openerp.osv import osv
 
 __author__ = "Sebastian Kennedy <skennedy@e-mips.com.ar>"
 
+class invoice_wsfe_optional(models.Model):
+    _name = "account.invoice.optional"
+    _description = 'WSFE Invoice Optional'
+
+    invoice_id = fields.Many2one('account.invoice', 'Invoice')
+    optional_id = fields.Many2one('wsfe.optionals', 'Optional')
+    value = fields.Char('Value', size=255)
+
 
 class account_invoice(models.Model):
     _name = "account.invoice"
@@ -48,8 +56,15 @@ class account_invoice(models.Model):
     wsfe_request_ids = fields.One2many('wsfe.request.detail', 'name')
     wsfex_request_ids = fields.One2many('wsfex.request.detail', 'invoice_id')
 
-    fiscal_type_id = fields.Many2one('account.invoice.fiscal.type', 'Fiscal type', default=lambda self: self.env.ref('l10n_ar_wsfe.fiscal_type_normal'))
-    voucher_type_id = fields.Many2one('wsfe.voucher_type', 'Voucher type', compute='_compute_voucher_type_id', store=True)
+    optional_ids = fields.One2many(
+            'account.invoice.optional', 'invoice_id', 'Optionals')
+    fiscal_type_id = fields.Many2one(
+            'account.invoice.fiscal.type', 'Fiscal type', 
+            default=lambda self: 
+                self.env.ref('l10n_ar_wsfe.fiscal_type_normal'))
+    voucher_type_id = fields.Many2one(
+            'wsfe.voucher_type', 'Voucher type', 
+            compute='_compute_voucher_type_id', store=True)
 
     @api.multi
     def set_fiscal_type_id(self):
