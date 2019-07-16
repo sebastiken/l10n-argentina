@@ -67,15 +67,13 @@ class account_invoice(models.Model):
             compute='_compute_voucher_type_id', store=True)
 
     @api.multi
-    def set_fiscal_type_id(self):
-        for invoice in self:
-            partner_id = invoice.partner_id
-            if partner_id:
-                receipt_wsfe = partner_id.receipt_wsfe
+    def set_fiscal_type_id(self, partner):
+            if partner:
+                receipt_wsfe = partner.receipt_wsfe
                 if receipt_wsfe:
-                    invoice.fiscal_type_id = self.env.ref('l10n_ar_wsfe.fiscal_type_fcred')
+                    return self.env.ref('l10n_ar_wsfe.fiscal_type_fcred')
                 else:
-                    invoice.fiscal_type_id = self.env.ref('l10n_ar_wsfe.fiscal_type_normal')
+                    return self.env.ref('l10n_ar_wsfe.fiscal_type_normal')
 
     @api.depends("denomination_id","fiscal_type_id","type")
     def _compute_voucher_type_id(self):
@@ -126,7 +124,10 @@ class account_invoice(models.Model):
                 dst_country = self.env['wsfex.dst_country.codes'].search([('country_id','=',country_id)])
                 if dst_country:
                     res['value'].update({'dst_country_id': dst_country[0].id})
-            self.set_fiscal_type_id()
+            fiscal_type_id = self.set_fiscal_type_id(partner)
+            denomination_id = partner.property_account_position.denomination_id
+            res['value'].update({'fiscal_type_id': fiscal_type_id.id,
+                                 'denomination_id': denomination_id.id})
         return res
 
     # Esto lo hacemos porque al hacer una nota de credito, no le setea la fiscal_position
@@ -198,7 +199,7 @@ class account_invoice(models.Model):
         voucher_type_obj = self.env['wsfe.voucher_type']
 
         # Obtenemos el tipo de comprobante
-        tipo_cbte = voucher_type_obj.get_voucher_type(inv)
+        tipo_cbte = self.voucher_type_id.code
         try:
             pto_vta = int(inv.pos_ar_id.name)
         except ValueError:
@@ -399,7 +400,7 @@ class account_invoice(models.Model):
                 raise osv.except_osv(_("WSFE Error"), _("There is no configuration for this POS %s") % pos_ar.name)
 
             # Obtenemos el tipo de comprobante
-            tipo_cbte = voucher_type_obj.get_voucher_type(inv)
+            tipo_cbte = inv.voucher_type_id.code
 
             # Obtenemos el numero de comprobante a enviar a la AFIP teniendo en
             # cuenta que inv.number == 000X-00000NN o algo similar.

@@ -28,4 +28,7 @@ class res_partner(models.Model):
     _name = "res.partner"
     _inherit = "res.partner"
 
-    receipt_wsfe = fields.Boolean('Recibe factura electrónica', default=False)
+    receipt_wsfe = fields.Boolean('Recibe factura de crédito electrónica', default=False)
+
+    def _commercial_fields(self, cr, uid, context=None):
+        return super(res_partner, self)._commercial_fields(cr, uid, context=context) + ['receipt_wsfe']

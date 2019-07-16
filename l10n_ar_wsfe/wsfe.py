@@ -507,6 +507,8 @@ class wsfe_config(models.Model):
                 detalle['FchServDesde'] = formatted_date_invoice
                 detalle['FchServHasta'] = formatted_date_invoice
                 detalle['FchVtoPago'] = date_due
+            elif inv.fiscal_type_id == self.env.ref('l10n_ar_wsfe.fiscal_type_fcred'):
+                detalle['FchVtoPago'] = date_due
 
             # Obtenemos la moneda de la factura
             # Lo hacemos por el wsfex_config, por cualquiera de ellos
@@ -620,43 +622,44 @@ It is a proof that a company sends to your client, which is notified to be charg
     denomination_id = fields.Many2one('invoice.denomination', 'Denomination', required=False)
     fiscal_type_id = fields.Many2one('account.invoice.fiscal.type', 'Fiscal type')
 
-    @api.model
-    def get_voucher_type(self, voucher):
-        # Chequeamos el modelo
-        voucher_model = None
-        model = voucher._table
+    #@api.model
+    #def get_voucher_type(self, voucher):
+    #    # Chequeamos el modelo
+    #    voucher_model = None
+    #    model = voucher._table
 
-        if model == 'account_invoice':
-            voucher_model = 'invoice'
+    #    if model == 'account_invoice':
+    #        voucher_model = 'invoice'
 
-            denomination_id = voucher.denomination_id.id
-            type = voucher.type
-            fiscal_type_id = voucher.fiscal_type_id.id
+    #        denomination_id = voucher.denomination_id.id
+    #        type = voucher.type
+    #        fiscal_type_id = voucher.fiscal_type_id.id
 
-            if type == 'out_invoice':
-                # TODO: Activar esto para ND
-                if voucher.is_debit_note:
-                    type = 'out_debit'
+    #        if type == 'out_invoice':
+    #            # TODO: Activar esto para ND
+    #            if voucher.is_debit_note:
+    #                type = 'out_debit'
 
-            res = self.search([
-                ('voucher_model', '=', voucher_model),
-                ('document_type', '=', type),
-                ('denomination_id', '=', denomination_id)])
+    #        res = self.search([
+    #            ('voucher_model', '=', voucher_model),
+    #            ('document_type', '=', type),
+    #            ('denomination_id', '=', denomination_id)])
+    #        __import__("ipdb").set_trace()
 
-            if fiscal_type_id:
-                res = res.filtered(lambda x: x.fiscal_type_id.id == fiscal_type_id)
+    #        if fiscal_type_id:
+    #            res = res.filtered(lambda x: x.fiscal_type_id.id == fiscal_type_id)
 
-            if not len(res):
-                raise osv.except_osv(_("Voucher type error!"), _("There is no voucher type that corresponds to this object"))
+    #        if not len(res):
+    #            raise osv.except_osv(_("Voucher type error!"), _("There is no voucher type that corresponds to this object"))
 
-            #if len(res) > 1:
-            #    raise osv.except_osv(_("Voucher type error!"), _("There is more than one voucher type that corresponds to this object"))
+    #        #if len(res) > 1:
+    #        #    raise osv.except_osv(_("Voucher type error!"), _("There is more than one voucher type that corresponds to this object"))
 
-            return res.code
+    #        return res.code
 
-        elif model == 'account_voucher':
-            voucher_model = 'voucher'
+    #    elif model == 'account_voucher':
+    #        voucher_model = 'voucher'
 
-        return None
+    #    return None
 
 wsfe_voucher_type()
