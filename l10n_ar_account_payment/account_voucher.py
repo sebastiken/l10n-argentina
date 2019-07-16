@@ -114,15 +114,26 @@ class account_voucher(osv.osv):
         self.pool.get('payment.mode.receipt.line').unlink(cr, uid, lines_to_unlink, context=context)
         return True
 
-    def proforma_voucher(self, cr, uid, ids, context=None):
-        if not context:
-            context = {}
+    def _check_negative_writeoff(self, cr, uid, ids, context=None):
 
         # Chequeamos si la writeoff_amount no es negativa
         writeoff_amount = self.read(cr, uid, ids, ['writeoff_amount'], context=context)[0]['writeoff_amount']
 
         if round(writeoff_amount, 2) < 0.0:
             raise osv.except_osv(_("Validate Error!"), _("Cannot validate a voucher with negative amount. Please check that Writeoff Amount is not negative."))
+
+        return True
+
+    def _voucher_additional_validations(self, cr, uid, ids, context=None):
+
+        self._check_negative_writeoff(cr, uid, ids, context=context)
+        return True
+
+    def proforma_voucher(self, cr, uid, ids, context=None):
+        if not context:
+            context = {}
+
+        self._voucher_additional_validations(cr, uid, ids, context)
 
         self._clean_payment_lines(cr, uid, ids, context=context)
 
