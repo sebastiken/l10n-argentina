@@ -66,6 +66,7 @@ class account_invoice(models.Model):
             'wsfe.voucher_type', 'Voucher type', 
             compute='_compute_voucher_type_id', store=True)
 
+    # Delete all optionals from the invoice if the fiscal_type_id isn't fcred so we won't try to send them to AFIP
     @api.constrains('fiscal_type_id')
     def _check_fiscal_type(self):
         for record in self:
