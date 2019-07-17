@@ -44,7 +44,7 @@
                     </group>
                 </page>
                 <page string="Other Info" position="before">
-                    <page string="FCRED" attrs="{'invisible': [('local','=', False)]}">
+                    <page string="FCRED" attrs="{'invisible': ['|',('local','=', False),('fiscal_type_id','!=',%(l10n_ar_wsfe.fiscal_type_fcred)d)]}">
                         <group string="Optionals">
                             <field name="optional_ids" nolabel="1">
                                 <tree editable="bottom">

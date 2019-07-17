@@ -32,7 +32,7 @@ class invoice_wsfe_optional(models.Model):
     _description = 'WSFE Invoice Optional'
 
     invoice_id = fields.Many2one('account.invoice', 'Invoice')
-    optional_id = fields.Many2one('wsfe.optionals', 'Optional')
+    optional_id = fields.Many2one('wsfe.optionals', 'Optional', )
     value = fields.Char('Value', size=255)
 
 
@@ -65,6 +65,14 @@ class account_invoice(models.Model):
     voucher_type_id = fields.Many2one(
             'wsfe.voucher_type', 'Voucher type', 
             compute='_compute_voucher_type_id', store=True)
+
+    @api.constrains('fiscal_type_id')
+    def _check_fiscal_type(self):
+        for record in self:
+            if record.fiscal_type_id != self.env.ref('l10n_ar_wsfe.fiscal_type_fcred'):
+                for rec in record.optional_ids:
+                    rec.unlink()
+
 
     @api.multi
     def set_fiscal_type_id(self, partner):
