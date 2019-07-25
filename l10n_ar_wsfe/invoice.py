@@ -33,7 +33,7 @@ class account_invoice(models.Model):
     _inherit = "account.invoice"
 
     aut_cae = fields.Boolean('Autorizar', default=False, help='Pedido de autorizacion a la AFIP')
-    cae = fields.Char('CAE/CAI', size=32, required=False, help='CAE (Codigo de Autorizacion Electronico assigned by AFIP.)')
+    cae = fields.Char('CAE/CAI', size=14, required=False, help='CAE (Codigo de Autorizacion Electronico assigned by AFIP.)')
     cae_due_date = fields.Date('CAE Due Date', required=False, help='Fecha de vencimiento del CAE')
     #'associated_inv_ids': fields.many2many('account.invoice', )
     associated_inv_ids = fields.Many2many('account.invoice', 'account_invoice_associated_rel', 'invoice_id', 'refund_debit_id')
