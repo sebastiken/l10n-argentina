@@ -14,6 +14,7 @@
                 <field name="fiscal_position" position="after">
                     <field name="local" invisible="1"/>
 					<field name="aut_cae" invisible="1"/>
+					<field name="fiscal_type_id"/>
                     <field name="export_type_id" widget="selection" attrs="{'invisible': [('local','=', True)], 'required': [('local','=',False)]}"/>
                     <field name="dst_country_id" attrs="{'invisible': [('local','=', True)], 'required': [('local','=',False)]}"/>
                     <field name="dst_cuit_id" widget="selection" attrs="{'invisible': [('local','=', True)]}"/>
@@ -43,6 +44,16 @@
                     </group>
                 </page>
                 <page string="Other Info" position="before">
+                    <page string="FCRED" attrs="{'invisible': ['|',('local','=', False),('fiscal_type_id','!=',%(l10n_ar_wsfe.fiscal_type_fcred)d)]}">
+                        <group string="Optionals">
+                            <field name="optional_ids" nolabel="1">
+                                <tree editable="bottom">
+                                    <field name="optional_id" options="{'no_create': True, 'no_create_edit':True, 'no_open':True}"/>
+                                    <field name="value"/>
+                                </tree>
+                            </field>
+                        </group>
+                    </page>
                     <page string="Export Invoice" attrs="{'invisible': [('local','=', True)]}">
                         <group string="Shipping Permissions">
                             <field name="shipping_perm_ids" nolabel="1" widget="one2many_list">
@@ -121,6 +132,8 @@
                     <field name="local" invisible="1"/>
                 </field>
                 <field name="fiscal_position" position="after">
+                    <field name="voucher_type_id" invisible="1"/>
+                    <field name="fiscal_type_id"/>
                     <field name="dst_cuit_id" widget="selection"
                         attrs="{'invisible': [('local','=', True)]}"/>
                 </field>

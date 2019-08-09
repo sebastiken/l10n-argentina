@@ -27,6 +27,14 @@ from openerp.osv import osv
 
 __author__ = "Sebastian Kennedy <skennedy@e-mips.com.ar>"
 
+class invoice_wsfe_optional(models.Model):
+    _name = "account.invoice.optional"
+    _description = 'WSFE Invoice Optional'
+
+    invoice_id = fields.Many2one('account.invoice', 'Invoice')
+    optional_id = fields.Many2one('wsfe.optionals', 'Optional', )
+    value = fields.Char('Value', size=255)
+
 
 class account_invoice(models.Model):
     _name = "account.invoice"
@@ -48,6 +56,69 @@ class account_invoice(models.Model):
     wsfe_request_ids = fields.One2many('wsfe.request.detail', 'name')
     wsfex_request_ids = fields.One2many('wsfex.request.detail', 'invoice_id')
 
+    optional_ids = fields.One2many(
+            'account.invoice.optional', 'invoice_id', 'Optionals')
+    fiscal_type_id = fields.Many2one(
+            'account.invoice.fiscal.type', 'Fiscal type', 
+            default=lambda self: 
+                self.env.ref('l10n_ar_wsfe.fiscal_type_normal'))
+    voucher_type_id = fields.Many2one(
+            'wsfe.voucher_type', 'Voucher type', 
+            compute='_compute_voucher_type_id', store=True)
+
+    # Delete all optionals from the invoice if the fiscal_type_id isn't fcred so we won't try to send them to AFIP
+    @api.constrains('fiscal_type_id')
+    def _check_fiscal_type(self):
+        for record in self:
+            if record.fiscal_type_id != self.env.ref('l10n_ar_wsfe.fiscal_type_fcred'):
+                for rec in record.optional_ids:
+                    rec.unlink()
+
+
+    @api.multi
+    def set_fiscal_type_id(self, partner):
+            if partner:
+                receipt_wsfe = partner.receipt_wsfe
+                if receipt_wsfe:
+                    return self.env.ref('l10n_ar_wsfe.fiscal_type_fcred')
+                else:
+                    return self.env.ref('l10n_ar_wsfe.fiscal_type_normal')
+
+    @api.depends("denomination_id","fiscal_type_id","type")
+    def _compute_voucher_type_id(self):
+        for invoice in self:
+            voucher_model = None
+            model = invoice._name
+
+            if invoice.type in ('out_invoice', 'in_invoice'):
+                invoice_type = 'invoice'
+                if invoice.is_debit_note:
+                    invoice_type = 'debit'
+            else:
+                invoice_type = 'credit'
+
+            res = invoice.env['wsfe.voucher_type'].search([('voucher_model', '=', model), ('document_type', '=', invoice_type), ('denomination_id', '=', invoice.denomination_id.id), ('fiscal_type_id', '=', invoice.fiscal_type_id.id)])
+
+            if not len(res):
+                return
+
+            if len(res) > 1:
+                raise osv.except_osv(_("Voucher type error!"), _("There is more than one voucher type that corresponds to this object"))
+
+            invoice.voucher_type_id = res
+
+    @api.multi
+    def invoice_validate(self):
+        for inv in self:
+            message = ""
+            if not inv.fiscal_type_id:
+                message += _("\nThe invoice must have a fiscal type")
+            if not inv.voucher_type_id:
+                message += _("\nThe invoice must have a voucher type")
+            if len(message):
+                raise osv.except_osv(_("Invoice validation error!"), message)
+        return super(account_invoice, self).invoice_validate()
+
     @api.multi
     def onchange_partner_id(self, type, partner_id, date_invoice=False,
             payment_term=False, partner_bank_id=False, company_id=False):
@@ -60,9 +131,12 @@ class account_invoice(models.Model):
             country_id = partner.country_id.id or False
             if country_id:
                 dst_country = self.env['wsfex.dst_country.codes'].search([('country_id','=',country_id)])
-
                 if dst_country:
                     res['value'].update({'dst_country_id': dst_country[0].id})
+            fiscal_type_id = self.set_fiscal_type_id(partner)
+            denomination_id = partner.property_account_position.denomination_id
+            res['value'].update({'fiscal_type_id': fiscal_type_id.id,
+                                 'denomination_id': denomination_id.id})
         return res
 
     # Esto lo hacemos porque al hacer una nota de credito, no le setea la fiscal_position
@@ -134,7 +208,7 @@ class account_invoice(models.Model):
         voucher_type_obj = self.env['wsfe.voucher_type']
 
         # Obtenemos el tipo de comprobante
-        tipo_cbte = voucher_type_obj.get_voucher_type(inv)
+        tipo_cbte = self.voucher_type_id.code
         try:
             pto_vta = int(inv.pos_ar_id.name)
         except ValueError:
@@ -335,7 +409,7 @@ class account_invoice(models.Model):
                 raise osv.except_osv(_("WSFE Error"), _("There is no configuration for this POS %s") % pos_ar.name)
 
             # Obtenemos el tipo de comprobante
-            tipo_cbte = voucher_type_obj.get_voucher_type(inv)
+            tipo_cbte = inv.voucher_type_id.code
 
             # Obtenemos el numero de comprobante a enviar a la AFIP teniendo en
             # cuenta que inv.number == 000X-00000NN o algo similar.

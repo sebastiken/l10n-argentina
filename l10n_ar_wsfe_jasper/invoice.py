@@ -38,13 +38,13 @@ class account_invoice(models.Model):
         pos = '0002'
 
         eivoucher_obj = self.env['wsfe.voucher_type']
-        ei_voucher_type = eivoucher_obj.search([('document_type', '=', self.type), ('denomination_id', '=', self.denomination_id.id)])#[0]
+        ei_voucher_type = eivoucher_obj.get_voucher_type(self) #search([('document_type', '=', self.type), ('denomination_id', '=', self.denomination_id.id)])#[0]
 
         if self.pos_ar_id:
             pos = self.pos_ar_id.name
 
         #ei_voucher_type = eivoucher_obj.browse(cr, uid, aux_res)
-        inv_code = ei_voucher_type.code
+        inv_code = ei_voucher_type
 
         if self.state == 'open' and self.cae != 'NA' and self.cae_due_date:
             cae = self.cae
@@ -53,7 +53,7 @@ class account_invoice(models.Model):
             cae_due_date = datetime.now()
             cae = '0'*14
 
-        self.bar_code = cuit+'%02d'%int(inv_code)+pos+cae+cae_due_date.strftime('%Y%m%d')+'4'
+        self.bar_code = cuit+'%03d'%int(inv_code)+pos+cae+cae_due_date.strftime('%Y%m%d')+'4'
 
     bar_code = fields.Char(string='Bar code', readonly=True, compute=_compute_bar_code)
 

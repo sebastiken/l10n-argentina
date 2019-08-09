@@ -42,6 +42,16 @@ class wsfe_tax_codes(models.Model):
     from_afip = fields.Boolean('From AFIP')
     exempt_operations = fields.Boolean('Exempt Operations', help='Check it if this VAT Tax corresponds to vat tax exempts operations, such as to sell books, milk, etc. The taxes with this checked, will be reported to AFIP as  exempt operations (base amount) without VAT applied on this')
 
+class wsfe_optionals(models.Model):
+    _name = "wsfe.optionals"
+    _description = "WSFE Optionals"
+
+    code = fields.Char('Code', required=False, size=4)
+    name = fields.Char('Desc', required=True, size=64)
+    to_date = fields.Date('Effect Until')
+    from_date = fields.Date('Effective From')
+    from_afip = fields.Boolean('From AFIP')
+    wsfe_config_id = fields.Many2one('wsfe.config', 'WSFE Configuration')
 
 class wsfe_config(models.Model):
     _name = "wsfe.config"
@@ -55,6 +65,7 @@ class wsfe_config(models.Model):
     point_of_sale_ids = fields.Many2many('pos.ar', 'pos_ar_wsfe_rel', 'wsfe_config_id', 'pos_ar_id', 'Points of Sale')
     vat_tax_ids = fields.One2many('wsfe.tax.codes', 'wsfe_config_id', 'Taxes', domain=[('from_afip', '=', True)])
     exempt_operations_tax_ids = fields.One2many('wsfe.tax.codes', 'wsfe_config_id', 'Taxes', domain=[('from_afip', '=', False), ('exempt_operations', '=', True)])
+    optional_ids = fields.One2many('wsfe.optionals', 'wsfe_config_id', 'Optionals', domain=[('from_afip', '=', True)])
     wsaa_ticket_id = fields.Many2one('wsaa.ta', 'Ticket Access')
     company_id = fields.Many2one('res.company', 'Company Name', required=True)
 
@@ -425,6 +436,9 @@ class wsfe_config(models.Model):
     def read_tax(self):
         self.ensure_one()
 
+        wsfe_tax_obj = self.env['wsfe.tax.codes']
+        wsfe_optionals_obj = self.env['wsfe.optionals']
+
         conf = self
         token, sign = conf.wsaa_ticket_id.get_token_sign()
 
@@ -434,8 +448,6 @@ class wsfe_config(models.Model):
         res = _wsfe.fe_dummy()
 
         res = _wsfe.fe_param_get_tipos_iva()
-
-        wsfe_tax_obj = self.env['wsfe.tax.codes']
 
         # Chequeamos los errores
         msg = self.check_errors(res, raise_exception=False)
@@ -470,6 +482,42 @@ class wsfe_config(models.Model):
                 res_c.write({'code': r.Id, 'name': r.Desc, 'to_date': td,
                                                        'from_date': fd, 'wsfe_config_id': self.id, 'from_afip': True})
 
+        res = _wsfe.fe_param_get_opcionales()
+
+        # Chequeamos los errores
+        msg = self.check_errors(res, raise_exception=False)
+        if msg:
+            # TODO: Hacer un wrapping de los errores, porque algunos son
+            # largos y se imprimen muy mal en pantalla
+            raise osv.except_osv(_('Error reading optionals'), msg)
+
+        #~ Armo un lista con los codigos de los Impuestos
+        for r in res['response']:
+            res_c = wsfe_optionals_obj.search([('code', '=', r.Id)])
+
+            #~ Si no tengo los codigos de esos Opcionales en la db, los creo
+            if not len(res_c):
+                fd = datetime.strptime(r.FchDesde, '%Y%m%d')
+                try:
+                    td = datetime.strptime(r.FchHasta, '%Y%m%d')
+                except ValueError:
+                    td = False
+
+                wsfe_optionals_obj.create({
+                    'code': r.Id, 'name': r.Desc, 'to_date': td,
+                    'from_date': fd, 'wsfe_config_id': self.id, 'from_afip': True})
+            #~ Si los codigos estan en la db los modifico
+            else:
+                fd = datetime.strptime(r.FchDesde, '%Y%m%d')
+                #'NULL' ?? viene asi de fe_param_get_tipos_iva():
+                try:
+                    td = datetime.strptime(r.FchHasta, '%Y%m%d')
+                except ValueError:
+                    td = False
+
+                res_c.write({
+                    'code': r.Id, 'name': r.Desc, 'to_date': td,
+                    'from_date': fd, 'wsfe_config_id': self.id, 'from_afip': True})
         return True
 
     @api.multi
@@ -545,6 +593,8 @@ class wsfe_config(models.Model):
                 detalle['FchServDesde'] = formatted_date_invoice
                 detalle['FchServHasta'] = formatted_date_invoice
                 detalle['FchVtoPago'] = date_due
+            elif inv.fiscal_type_id == self.env.ref('l10n_ar_wsfe.fiscal_type_fcred'):
+                detalle['FchVtoPago'] = date_due
 
             # Obtenemos la moneda de la factura
             # Lo hacemos por el wsfex_config, por cualquiera de ellos
@@ -613,6 +663,8 @@ class wsfe_config(models.Model):
 
             # Detalle del array de IVA
             detalle['Iva'] = iva_array
+            detalle['Opcionales'] = inv.optional_ids.mapped(
+                lambda o: {'Id': int(o.optional_id.code), 'Valor': o.value})
 
             # Detalle de los importes
             detalle['ImpOpEx'] = importe_operaciones_exentas
@@ -646,44 +698,54 @@ It is a proof that a company sends to your client, which is notified to be charg
     name = fields.Char('Name', size=64, required=True, readonly=False, help='Voucher Type, eg.: Factura A, Nota de Credito B, etc.')
     code = fields.Char('Code', size=4, required=True, help='Internal Code assigned by AFIP for voucher type')
     voucher_model = fields.Selection([
-        ('invoice', 'Factura/NC/ND'),
-        ('voucher', 'Recibo'), ], 'Voucher Model', select=True, required=True)
+        ('account.invoice', 'Factura/NC/ND'),
+        ('account.voucher', 'Recibo'), ], 'Voucher Model', select=True, required=True)
     document_type = fields.Selection([
-        ('out_invoice', 'Factura'),
-        ('out_refund', 'Nota de Credito'),
-        ('out_debit', 'Nota de Debito'),
+        ('invoice', 'Factura'),
+        ('refund', 'Nota de Credito'),
+        ('debit', 'Nota de Debito'),
     ], 'Document Type', select=True, required=True, readonly=False)
     denomination_id = fields.Many2one('invoice.denomination', 'Denomination', required=False)
+    fiscal_type_id = fields.Many2one('account.invoice.fiscal.type', 'Fiscal type')
 
-    @api.model
-    def get_voucher_type(self, voucher):
-        # Chequeamos el modelo
-        voucher_model = None
-        model = voucher._table
+    #@api.model
+    #def get_voucher_type(self, voucher):
+    #    # Chequeamos el modelo
+    #    voucher_model = None
+    #    model = voucher._table
 
-        if model == 'account_invoice':
-            voucher_model = 'invoice'
+    #    if model == 'account_invoice':
+    #        voucher_model = 'invoice'
 
-            denomination_id = voucher.denomination_id.id
-            type = voucher.type
-            if type == 'out_invoice':
-                # TODO: Activar esto para ND
-                if voucher.is_debit_note:
-                    type = 'out_debit'
+    #        denomination_id = voucher.denomination_id.id
+    #        type = voucher.type
+    #        fiscal_type_id = voucher.fiscal_type_id.id
 
-            res = self.search([('voucher_model', '=', voucher_model), ('document_type', '=', type), ('denomination_id', '=', denomination_id)])
+    #        if type == 'out_invoice':
+    #            # TODO: Activar esto para ND
+    #            if voucher.is_debit_note:
+    #                type = 'out_debit'
 
-            if not len(res):
-                raise osv.except_osv(_("Voucher type error!"), _("There is no voucher type that corresponds to this object"))
+    #        res = self.search([
+    #            ('voucher_model', '=', voucher_model),
+    #            ('document_type', '=', type),
+    #            ('denomination_id', '=', denomination_id)])
+    #        __import__("ipdb").set_trace()
 
-            if len(res) > 1:
-                raise osv.except_osv(_("Voucher type error!"), _("There is more than one voucher type that corresponds to this object"))
+    #        if fiscal_type_id:
+    #            res = res.filtered(lambda x: x.fiscal_type_id.id == fiscal_type_id)
 
-            return res.code
+    #        if not len(res):
+    #            raise osv.except_osv(_("Voucher type error!"), _("There is no voucher type that corresponds to this object"))
 
-        elif model == 'account_voucher':
-            voucher_model = 'voucher'
+    #        #if len(res) > 1:
+    #        #    raise osv.except_osv(_("Voucher type error!"), _("There is more than one voucher type that corresponds to this object"))
 
-        return None
+    #        return res.code
+
+    #    elif model == 'account_voucher':
+    #        voucher_model = 'voucher'
+
+    #    return None
 
 wsfe_voucher_type()

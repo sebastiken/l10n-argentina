@@ -66,8 +66,8 @@ class wsaa_ta(models.Model):
     _description = "Ticket Access for WSAA"
 
     name = fields.Many2one('afipws.service', 'Service')
-    token = fields.Text('Token', readonly=True)
-    sign = fields.Text('Sign', readonly=True)
+    token = fields.Text('Token')
+    sign = fields.Text('Sign')
     expiration_time = fields.Char('Expiration Time', size=256)
     config_id = fields.Many2one('wsaa.config')
     company_id = fields.Many2one('res.company', 'Company Name')

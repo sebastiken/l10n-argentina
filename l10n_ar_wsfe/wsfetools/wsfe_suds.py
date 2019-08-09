@@ -179,6 +179,26 @@ class WSFEv1:
         print res
         return res
 
+    def fe_param_get_opcionales(self):
+
+        # Llamamos a la funcion
+        result = self.client.service.FEParamGetTiposOpcional(self.argauth)
+
+        res = {}
+        # Obtenemos Errores y Eventos
+        errors = self._get_errors(result)
+        if len(errors):
+            res['errors'] = errors
+
+        events = self._get_events(result)
+        if len(events):
+            res['events'] = events
+
+        if 'ResultGet' in result:
+            res['response'] = result.ResultGet.OpcionalTipo
+
+        return res
+
     def fe_param_get_tipos_monedas(self):
 
         # Llamamos a la funcion
@@ -481,6 +501,7 @@ class WSFEv1:
         for detalle in detalles:
             arrayIva = []
             arrayTributos = []
+            arrayOpcionales = []
 
             argdetreq = self.client.factory.create('ns0:FECAEDetRequest')
 
@@ -508,6 +529,18 @@ class WSFEv1:
 
                             arrayTributos.append(argtrib)
                             continue
+                    elif k == 'Opcionales':
+                        for op in v:
+                            argopc = self.client.factory.create('ns0:Opcional')
+                            for k, v in op.iteritems():
+                                if k in argopc:
+                                    argopc[k] = v
+                                else:
+                                    argopc[k] = None
+
+                            arrayOpcionales.append(argopc)
+                            continue
+
                 else:
                     if k in argdetreq:
                         argdetreq[k] = v
@@ -518,6 +551,8 @@ class WSFEv1:
                 argdetreq.Iva.AlicIva.append(arrayIva)
             if len(arrayTributos):
                 argdetreq.Tributos.Tributo.append(arrayTributos)
+            if len(arrayOpcionales):
+                argdetreq.Opcionales.Opcional.append(arrayOpcionales)
             argcaereq.FeDetReq.FECAEDetRequest.append(argdetreq)
 
         result = self.client.service.FECAESolicitar(self.argauth, argcaereq)
