@@ -152,7 +152,9 @@ class invoice(models.Model):
             raise ValidationError(_('Error! The total amount cannot be negative'))
 
     @api.one
-    @api.constrains('denomination_id', 'pos_ar_id', 'type', 'is_debit_note', 'internal_number')
+    @api.constrains(
+        'denomination_id', 'pos_ar_id', 'type', 'is_debit_note',
+        'internal_number', 'voucher_type_id')
     def _check_duplicate(self):
 
         denomination_id = self.denomination_id
@@ -172,12 +174,30 @@ class invoice(models.Model):
             return
 
         if self.type in ('out_invoice', 'out_refund'):
-            count = self.search_count([('denomination_id','=',denomination_id.id), ('pos_ar_id','=',pos_ar_id.id), ('is_debit_note','=',self.is_debit_note), ('internal_number','!=', False), ('internal_number','!=',''), ('internal_number','=',self.internal_number), ('type','=',self.type), ('state','!=','cancel')])
+            count = self.search_count([
+                ('denomination_id', '=', denomination_id.id),
+                ('pos_ar_id', '=', pos_ar_id.id),
+                ('is_debit_note', '=', self.is_debit_note),
+                ('internal_number', '!=', False),
+                ('internal_number', '!=', ''),
+                ('internal_number', '=', self.internal_number),
+                ('type', '=', self.type),
+                ('voucher_type_id', '=', self.voucher_type_id.id),
+                ('state', '!=', 'cancel')])
 
             if count > 1:
                 raise ValidationError(_('Error! The Invoice is duplicated.'))
         else:
-            count = self.search_count([('denomination_id','=',denomination_id.id), ('is_debit_note','=',self.is_debit_note), ('partner_id','=',partner_id.id), ('internal_number','!=', False), ('internal_number','!=',''), ('internal_number','=', self.internal_number), ('type','=',self.type), ('state','!=','cancel')])
+            count = self.search_count([
+                ('denomination_id', '=', denomination_id.id),
+                ('is_debit_note', '=', self.is_debit_note),
+                ('partner_id', '=', partner_id.id),
+                ('internal_number','!=', False),
+                ('internal_number', '!=', ''),
+                ('internal_number', '=', self.internal_number),
+                ('type', '=', self.type),
+                ('state', '!=', 'cancel')])
+
             if count > 1:
                 raise ValidationError(_('Error! The Invoice is duplicated.'))
 
