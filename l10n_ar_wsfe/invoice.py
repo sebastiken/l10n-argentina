@@ -40,6 +40,16 @@ class account_invoice(models.Model):
     _name = "account.invoice"
     _inherit = "account.invoice"
 
+    @api.model
+    def _get_default_fiscal_type(self):
+        fiscal_type_null = self.env['account.invoice.fiscal.type']
+        try:
+            fiscal_type_normal = self.env.ref('l10n_ar_wsfe.fiscal_type_normal')
+        except ValueError:
+            fiscal_type_normal = fiscal_type_null
+
+        return fiscal_type_normal
+
     aut_cae = fields.Boolean('Autorizar', default=False, help='Pedido de autorizacion a la AFIP')
     cae = fields.Char('CAE/CAI', size=32, required=False, help='CAE (Codigo de Autorizacion Electronico assigned by AFIP.)')
     cae_due_date = fields.Date('CAE Due Date', required=False, help='Fecha de vencimiento del CAE')
@@ -57,14 +67,14 @@ class account_invoice(models.Model):
     wsfex_request_ids = fields.One2many('wsfex.request.detail', 'invoice_id')
 
     optional_ids = fields.One2many(
-            'account.invoice.optional', 'invoice_id', 'Optionals')
+        'account.invoice.optional', 'invoice_id', 'Optionals')
     fiscal_type_id = fields.Many2one(
-            'account.invoice.fiscal.type', 'Fiscal type', 
-            default=lambda self: 
-                self.env.ref('l10n_ar_wsfe.fiscal_type_normal'))
+        'account.invoice.fiscal.type', 'Fiscal type',
+        default=_get_default_fiscal_type, readonly=True,
+        states={'draft':[('readonly',False)]})
     voucher_type_id = fields.Many2one(
-            'wsfe.voucher_type', 'Voucher type', 
-            compute='_compute_voucher_type_id', store=True)
+        'wsfe.voucher_type', 'Voucher type',
+        compute='_compute_voucher_type_id', store=True)
 
     # Delete all optionals from the invoice if the fiscal_type_id isn't fcred so we won't try to send them to AFIP
     @api.constrains('fiscal_type_id')
@@ -74,15 +84,14 @@ class account_invoice(models.Model):
                 for rec in record.optional_ids:
                     rec.unlink()
 
-
-    @api.multi
-    def set_fiscal_type_id(self, partner):
-            if partner:
-                receipt_wsfe = partner.receipt_wsfe
-                if receipt_wsfe:
-                    return self.env.ref('l10n_ar_wsfe.fiscal_type_fcred')
-                else:
-                    return self.env.ref('l10n_ar_wsfe.fiscal_type_normal')
+    @api.model
+    def get_fiscal_type_id(self, partner):
+        if partner:
+            receipt_wsfe = partner.receipt_wsfe
+            if receipt_wsfe:
+                return self.env.ref('l10n_ar_wsfe.fiscal_type_fcred')
+            else:
+                return self.env.ref('l10n_ar_wsfe.fiscal_type_normal')
 
     @api.depends("denomination_id","fiscal_type_id","type")
     def _compute_voucher_type_id(self):
@@ -133,7 +142,7 @@ class account_invoice(models.Model):
                 dst_country = self.env['wsfex.dst_country.codes'].search([('country_id','=',country_id)])
                 if dst_country:
                     res['value'].update({'dst_country_id': dst_country[0].id})
-            fiscal_type_id = self.set_fiscal_type_id(partner)
+            fiscal_type_id = self.get_fiscal_type_id(partner)
             denomination_id = partner.property_account_position.denomination_id
             res['value'].update({'fiscal_type_id': fiscal_type_id.id,
                                  'denomination_id': denomination_id.id})
