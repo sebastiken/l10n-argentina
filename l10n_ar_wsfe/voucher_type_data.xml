@@ -89,7 +89,7 @@
             <field name="voucher_model">account.invoice</field>
             <field name="document_type">invoice</field>
             <field name="denomination_id" ref="l10n_ar_point_of_sale.denomination_E"/>
-            <field name="fiscal_type_id" ref="l10n_ar_wsfe.fiscal_type_export"/>
+            <field name="fiscal_type_id" ref="l10n_ar_wsfe.fiscal_type_normal"/>
         </record>
 
         <record id="voucher_debit_note_E" model="wsfe.voucher_type" forcecreate="1">
@@ -98,7 +98,7 @@
             <field name="voucher_model">account.invoice</field>
             <field name="document_type">debit</field>
             <field name="denomination_id" ref="l10n_ar_point_of_sale.denomination_E"/>
-            <field name="fiscal_type_id" ref="l10n_ar_wsfe.fiscal_type_export"/>
+            <field name="fiscal_type_id" ref="l10n_ar_wsfe.fiscal_type_normal"/>
         </record>
 
         <record id="voucher_credit_note_E" model="wsfe.voucher_type" forcecreate="1">
@@ -107,7 +107,7 @@
             <field name="voucher_model">account.invoice</field>
             <field name="document_type">refund</field>
             <field name="denomination_id" ref="l10n_ar_point_of_sale.denomination_E"/>
-            <field name="fiscal_type_id" ref="l10n_ar_wsfe.fiscal_type_export"/>
+            <field name="fiscal_type_id" ref="l10n_ar_wsfe.fiscal_type_normal"/>
         </record>
 
         <record id="voucher_invoice_M" model="wsfe.voucher_type" forcecreate="1">

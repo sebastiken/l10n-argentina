@@ -24,8 +24,12 @@ import re
 from openerp import _, api, exceptions, fields, models, pooler
 from openerp.exceptions import except_orm
 from openerp.osv import osv
+import logging
+
+_logger = logging.getLogger(__name__)
 
 __author__ = "Sebastian Kennedy <skennedy@e-mips.com.ar>"
+
 
 class invoice_wsfe_optional(models.Model):
     _name = "account.invoice.optional"
@@ -93,9 +97,11 @@ class account_invoice(models.Model):
             else:
                 return self.env.ref('l10n_ar_wsfe.fiscal_type_normal')
 
-    @api.depends("denomination_id","fiscal_type_id","type")
+    @api.depends("denomination_id", "fiscal_type_id", "type")
     def _compute_voucher_type_id(self):
+        wvt_cache = {}
         for invoice in self:
+            invoice_id = invoice.id
             voucher_model = None
             model = invoice._name
 
@@ -104,17 +110,49 @@ class account_invoice(models.Model):
                 if invoice.is_debit_note:
                     invoice_type = 'debit'
             else:
-                invoice_type = 'credit'
+                invoice_type = 'refund'
 
-            res = invoice.env['wsfe.voucher_type'].search([('voucher_model', '=', model), ('document_type', '=', invoice_type), ('denomination_id', '=', invoice.denomination_id.id), ('fiscal_type_id', '=', invoice.fiscal_type_id.id)])
+            q = """
+                SELECT denomination_id, fiscal_type_id
+                FROM account_invoice WHERE id=%(invoice_id)s
+            """
+            self._cr.execute(q, locals())
+            denomination_id, fiscal_type_id = self._cr.fetchone()
+            if not fiscal_type_id or not denomination_id:
+                continue
 
-            if not len(res):
-                return
+            # Lookup in cache first to prevent several queries to DB
+            key = (model, invoice_type, denomination_id, fiscal_type_id)
+            voucher_type_id = wvt_cache.get(key)
+            if not voucher_type_id:
+                q = """
+                    SELECT id FROM wsfe_voucher_type
+                    WHERE voucher_model=%(model)s
+                        AND document_type=%(invoice_type)s
+                        AND denomination_id=%(denomination_id)s
+                        AND fiscal_type_id=%(fiscal_type_id)s
+                """
+                self._cr.execute(q, locals())
+                res = [i[0] for i in self._cr.fetchall()]
 
-            if len(res) > 1:
-                raise osv.except_osv(_("Voucher type error!"), _("There is more than one voucher type that corresponds to this object"))
+                if not len(res):
+                    _logger.warning('Non-Matching wsfe_voucher_type for %s [IT %s, DEN %s, FT %s]', invoice, invoice_type, denomination_id, fiscal_type_id)
+                    continue
 
-            invoice.voucher_type_id = res
+                if len(res) > 1:
+                    raise osv.except_osv(
+                        _("Voucher type error!"),
+                        _("There is more than one voucher type that corresponds to this object"))
+
+                voucher_type_id = res[0]
+                wvt_cache[key] = voucher_type_id
+
+            q = """
+                UPDATE account_invoice
+                SET voucher_type_id=%(voucher_type_id)s
+                WHERE id=%(invoice_id)s
+            """
+            self._cr.execute(q, locals())
 
     @api.multi
     def invoice_validate(self):

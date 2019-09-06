@@ -3,174 +3,103 @@ import psycopg2
 import logging
 from openerp import SUPERUSER_ID, api
 
-logger = logging.getLogger(__name__)
+_logger = logging.getLogger(__name__)
+
+
+def get_e_denomination_in_use(cr):
+    """
+    Try to get an E denomination in use
+    """
+    q = """
+    SELECT invd.id
+    FROM invoice_denomination invd
+        JOIN account_invoice ai ON ai.denomination_id = invd.id
+    WHERE invd.name ~* '^e$' GROUP BY invd.id HAVING count(*) > 0
+    ORDER BY count(*) DESC
+    """
+    cr.execute(q)
+    ids = [i[0] for i in cr.fetchall()]
+    ilen = len(ids)
+    res = None
+    if ilen:
+        if ilen > 1:
+            _logger.warning('More than one denomination E available: %s. Choosing the first one.' % ids)
+        res = ids[0]
+    else:
+        _logger.warning('Not results for %s' % cr.mogrify(q, q_p))
+    return res
+
+
+def lookup_afp_for_den(cr, denid):
+    q = """
+        SELECT id
+        FROM account_fiscal_position
+        WHERE active=True and local=False and (
+            denomination_id=%(den_id)s OR denom_supplier_id=%(den_id)s
+        )
+    """
+    q_p = {'den_id': denid}
+    cr.execute(q, q_p)
+    ids = [i[0] for i in cr.fetchall()]
+    res = None
+    if ids:
+        if len(ids) > 1:
+            _logger.warning('More than one fiscal position matching query(choosing first one): %s' % cr.mogrify(q, q_p))
+        res = ids[0]
+    return res
+
 
 def _do_update(cr):
-    try:
-        logger.info("Deleting temporary tables if they already exist")
+    """
+    Check if exist a denomination with E name and related to documents
+    """
+    den_eid = get_e_denomination_in_use(cr)
+    if den_eid:
+        # Generate IMD for the denomination E
         q = """
-            DROP TABLE IF EXISTS temp_invoice_ids
+        INSERT INTO ir_model_data (name, module, model, res_id, noupdate)
+        VALUES (%(name)s, %(module)s, %(model)s, %(res_id)s, True)
         """
-
-        cr.execute(q)
-
-        q = """
-            DROP TABLE IF EXISTS temp_fiscal_id
-        """
-
-        cr.execute(q)
-
-        q = """
-            DROP TABLE IF EXISTS temp_voucher_type_ids
-        """
-
-        cr.execute(q)
-
-        logger.info("Step 1: Creating temporary tables where we will save ids of affected invoices and voucher types. We will also save the  old fiscal position id")
-
-        q = """
-            CREATE TABLE temp_invoice_ids(
-                invoice_id integer
-            )
-        """
-
-        cr.execute(q)
-
-        q = """
-            CREATE TABLE temp_voucher_type_ids(
-                voucher_type_id integer
-            )
-        """
-
-        cr.execute(q)
-
-        q = """
-            CREATE TABLE temp_fiscal_id(
-                fiscal_id integer
-            )
-        """
-
-        cr.execute(q)
-
-        logger.info("Step 2: Inserting data into the temporary table")
-
-        env = api.Environment(cr, SUPERUSER_ID, {})
-
-
-        q = """
-            SELECT id
-            FROM invoice_denomination
-            WHERE name = 'E'
-        """
-
-        cr.execute(q)
-
-        res = cr.fetchall()
-
-        denomination_id = -1
-
-        for tup in res:
-            denomination_id = tup
-
-
-        q = """
-            SELECT id
-            FROM account_fiscal_position
-            WHERE name = 'Proveedor Exterior'
-        """
-        
-        cr.execute(q)
-
-        res = cr.fetchall()
-
-        fiscal_position_id = -1
-
-        for tup in res:
-            fiscal_position_id = tup
-
-
-        q = """
-            WITH q AS (
-                SELECT id invoice_id
-                FROM account_invoice
-                WHERE fiscal_position = %(fiscal_position_id)s
-                AND denomination_id = %(denomination_id)s
-            ) INSERT INTO temp_invoice_ids (
-                invoice_id)
-            SELECT invoice_id
-            FROM q
-        """
-
         q_p = {
-            'fiscal_position_id': fiscal_position_id,
-            'denomination_id': denomination_id
+            'name': 'denomination_E',
+            'module': 'l10n_ar_point_of_sale',
+            'model': 'invoice.denomination',
+            'res_id': den_eid,
         }
+        _logger.info('Generating imd for denomination_E')
+        try:
+            cr.execute(q, q_p)
+        except Exception as e:
+            _logger.exception('Unable to add imd for denomination_E to %s' % den_eid)
+            cr.rollback()
+        else:
+            _logger.info('[IMD] denomination_E refers to invoice.denomination %s' % den_eid)
+            cr.commit()
 
-        cr.execute(q, q_p)
+        # Lookup AFP for denomination E
+        afpid = lookup_afp_for_den(cr, den_eid)
+        if afpid:
+            # Generate IMD for the AFP Exterior
+            q = """
+            INSERT INTO ir_model_data (name, module, model, res_id, noupdate)
+            VALUES (%(name)s, %(module)s, %(model)s, %(res_id)s, True)
+            """
+            q_p = {
+                'name': 'fiscal_position_proveedor_exterior',
+                'module': 'l10n_ar_point_of_sale',
+                'model': 'account.fiscal.position',
+                'res_id': afpid,
+            }
+            _logger.info('Generating imd for fiscal_position_proveedor_exterior')
+            try:
+                cr.execute(q, q_p)
+            except Exception as e:
+                _logger.exception('Unable to add imd for fiscal_position_proveedor_exterior to %s' % afpid)
+                cr.rollback()
+            else:
+                _logger.info('[IMD] fiscal_position_proveedor_exterior refers to account.fiscal.position %s' % afpid)
+                cr.commit()
 
-        q = """
-            WITH q AS (
-                SELECT id fiscal_id
-                FROM account_fiscal_position
-                WHERE id = %(fiscal_position_id)s
-            ) INSERT INTO temp_fiscal_id (
-                fiscal_id)
-            SELECT fiscal_id
-            FROM q
-        """
-
-        q_p = {
-            'fiscal_position_id': fiscal_position_id
-        }
-
-        cr.execute(q, q_p)
-
-        q = """
-            WITH q AS (
-                SELECT id voucher_type_id
-                FROM wsfe_voucher_type
-                WHERE denomination_id = %(denomination_id)s
-            ) INSERT INTO temp_voucher_type_ids (
-                voucher_type_id)
-            SELECT voucher_type_id
-            FROM q
-        """
-
-        q_p = {
-            'denomination_id': denomination_id
-        }
-
-        cr.execute(q, q_p)
-
-        logger.info("Step 3: Deleting current records of model_data, invoice denominations and account fiscal positions")
-
-        q = """
-            DELETE FROM ir_model_data
-            WHERE name = 'denomination_E' OR
-            name = 'fiscal_position_proveedor_exterior'
-        """
-
-        cr.execute(q)
-        
-        q = """
-            DELETE FROM account_fiscal_position
-            WHERE name = 'Proveedor Exterior'
-        """
-
-        cr.execute(q)
-
-        q = """
-            DELETE FROM invoice_denomination
-            WHERE name = 'E'
-        """
-
-        cr.execute(q)
-
-    except Exception as e:
-        logger.warning(e)
-        cr.rollback()
-    else:
-        cr.commit()
 
 def migrate(cr, installed_version):
     return _do_update(cr)
