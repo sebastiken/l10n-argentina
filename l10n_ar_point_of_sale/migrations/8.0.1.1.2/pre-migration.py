@@ -1,7 +1,5 @@
 # -*- coding: utf-8 -*-
-import psycopg2
 import logging
-from openerp import SUPERUSER_ID, api
 
 _logger = logging.getLogger(__name__)
 
@@ -26,7 +24,7 @@ def get_e_denomination_in_use(cr):
             _logger.warning('More than one denomination E available: %s. Choosing the first one.' % ids)
         res = ids[0]
     else:
-        _logger.warning('Not results for %s' % cr.mogrify(q, q_p))
+        _logger.warning('Not results for %s' % cr.mogrify(q))
     return res
 
 
@@ -69,7 +67,7 @@ def _do_update(cr):
         _logger.info('Generating imd for denomination_E')
         try:
             cr.execute(q, q_p)
-        except Exception as e:
+        except Exception:
             _logger.exception('Unable to add imd for denomination_E to %s' % den_eid)
             cr.rollback()
         else:
@@ -93,7 +91,7 @@ def _do_update(cr):
             _logger.info('Generating imd for fiscal_position_proveedor_exterior')
             try:
                 cr.execute(q, q_p)
-            except Exception as e:
+            except Exception:
                 _logger.exception('Unable to add imd for fiscal_position_proveedor_exterior to %s' % afpid)
                 cr.rollback()
             else:
@@ -103,4 +101,3 @@ def _do_update(cr):
 
 def migrate(cr, installed_version):
     return _do_update(cr)
-

@@ -1,6 +1,5 @@
 # -*- coding: utf-8 -*-
 import logging
-from openerp import SUPERUSER_ID, api
 
 _logger = logging.getLogger(__name__)
 
@@ -92,13 +91,6 @@ def merge_records(cr, rec_table, origin_record, target_record):
         raise NameError('Record have referencing')
 
     _logger.warning('Maybe you want to run: DELETE FROM ' + rec_table + ' WHERE id=' + str(origin_record))
-    # delete_query = """
-    #     DELETE FROM """ + origin_record._model._table + """
-    #         WHERE id = %(origin_record_id)s """
-    #
-    # cr.execute(delete_query, {
-    #     'origin_record_id': origin_record,
-    # })
 
     return True
 
