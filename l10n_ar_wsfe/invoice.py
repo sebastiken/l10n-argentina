@@ -111,13 +111,17 @@ class account_invoice(models.Model):
                     invoice_type = 'debit'
             else:
                 invoice_type = 'refund'
+            if isinstance(invoice_id, models.NewId):
+                denomination_id = invoice.denomination_id.id
+                fiscal_type_id = invoice.fiscal_type_id.id
+            else:
+                q = """
+                    SELECT denomination_id, fiscal_type_id
+                    FROM account_invoice WHERE id=%(invoice_id)s
+                """
+                self._cr.execute(q, locals())
+                denomination_id, fiscal_type_id = self._cr.fetchone()
 
-            q = """
-                SELECT denomination_id, fiscal_type_id
-                FROM account_invoice WHERE id=%(invoice_id)s
-            """
-            self._cr.execute(q, locals())
-            denomination_id, fiscal_type_id = self._cr.fetchone()
             if not fiscal_type_id or not denomination_id:
                 continue
 
@@ -147,12 +151,7 @@ class account_invoice(models.Model):
                 voucher_type_id = res[0]
                 wvt_cache[key] = voucher_type_id
 
-            q = """
-                UPDATE account_invoice
-                SET voucher_type_id=%(voucher_type_id)s
-                WHERE id=%(invoice_id)s
-            """
-            self._cr.execute(q, locals())
+           invoice.voucher_type_id = voucher_type_id
 
     @api.multi
     def invoice_validate(self):
