@@ -151,7 +151,7 @@ class account_invoice(models.Model):
                 voucher_type_id = res[0]
                 wvt_cache[key] = voucher_type_id
 
-           invoice.voucher_type_id = voucher_type_id
+            invoice.voucher_type_id = voucher_type_id
 
     @api.multi
     def invoice_validate(self):
