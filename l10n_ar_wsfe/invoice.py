@@ -74,7 +74,7 @@ class account_invoice(models.Model):
         'account.invoice.optional', 'invoice_id', 'Optionals')
     fiscal_type_id = fields.Many2one(
         'account.invoice.fiscal.type', 'Fiscal type',
-        default=_get_default_fiscal_type, readonly=True,
+        default=_get_default_fiscal_type, readonly=False,
         states={'draft':[('readonly',False)]})
     voucher_type_id = fields.Many2one(
         'wsfe.voucher_type', 'Voucher type',
