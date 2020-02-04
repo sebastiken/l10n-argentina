@@ -42,7 +42,7 @@ class account_invoice(models.Model):
         if self.pos_ar_id:
             pos = self.pos_ar_id.name
 
-        inv_code = ei_voucher_type
+        inv_code = ei_voucher_type.code
 
         if self.state == 'open' and self.cae != 'NA' and self.cae_due_date:
             cae = self.cae
@@ -51,7 +51,7 @@ class account_invoice(models.Model):
             cae_due_date = datetime.now()
             cae = '0' * 14
 
-        self.bar_code = cuit + '%03d' % int(inv_code) + pos + cae + cae_due_date.strftime('%Y%m%d') + '4'
+        self.bar_code = cuit + '%02d' % int(inv_code) + pos + cae + cae_due_date.strftime('%Y%m%d') + '4'
 
     bar_code = fields.Char(string='Bar code', readonly=True, compute=_compute_bar_code)
 
