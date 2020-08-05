@@ -459,7 +459,9 @@ class wsfex_config(models.Model):
         _wsfex = wsfex(conf.cuit, token, sign, conf.url)
 
         # Agregamos la info que falta
-        details['Tipo_cbte'] = voucher_type
+        if voucher_type in ('20', '21'):
+            details['Fecha_cbte'] = ''
+        details['Cbte_tipo'] = voucher_type
         details['Punto_vta'] = pos
         res = _wsfex.FEXAuthorize(details)
 
@@ -632,11 +634,11 @@ class wsfex_config(models.Model):
             for associated_inv in inv.associated_inv_ids:
                 tipo_cbte = voucher_type_obj.get_voucher_type(associated_inv)
                 pos, number = associated_inv.internal_number.split('-')
-                Cmp_asoc = {
+                Cmp_asoc = {'Cmp_asoc': {
                     'Cbte_tipo': tipo_cbte,
                     'Cbte_punto_vta': int(pos),
                     'Cbte_nro': int(number),
-                }
+                }}
 
                 Cmps_asoc.append(Cmp_asoc)
 
@@ -670,7 +672,7 @@ class wsfex_config(models.Model):
                 Cmp['Incoterms_Ds'] = inv.incoterm_id.name
 
             if Cmps_asoc:
-                Cmp['Cmps_Asoc'] = Cmps_asoc
+                Cmp['Cmps_asoc'] = Cmps_asoc
         return Cmp
 
 wsfex_config()
